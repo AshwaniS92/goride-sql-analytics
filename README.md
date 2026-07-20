@@ -1,10 +1,29 @@
-# goride-sql-analytics
+# GoRide — Ride-Share SQL Analytics 🚕
 
-1. Data quirks that gave me the most trouble
-Phone normalisation for Q12 was  a key concept which need to be address as the Quick hop had prefix 49 and Goride stores had prefix starting form +49, so this was a new learning concept which i was not aware before. For Payments with  correction flag in 4.10 which I treated payment_correction_flag as the final source of truth whenever a corrected service type was requested, because some parcel payments were wrongly tagged as rides during launch.
+25 production-style SQL queries answering business questions on a messy, merged ride-sharing database — the result of an acquisition, a parcel-line launch, and B2B onboarding in 18 months.
 
-2. The two questions I found hardest
-Q25 (average monthly driver earnings per zone) took the longest because it stacked multiple challenges on top of each other e.g: zone name canonicalization (hyphens, double spaces), driver identity resolution via merged_into_driver_id and per-driver-month averaging. My first attempt produced inconsistent denominators because I counted raw driver_id instead of COALESCE(merged_into_driver_id, driver_id) which has impacted my outputs in previous results as well — merged duplicate drivers were each counted as separate driver-months and started mking sense for me. Once I wrapped the COALESCE inside the COUNT(DISTINCT (..., DATE_TRUNC('month', requested_at))), the numbers stabilized. Q23 (fraud detection) was one of the hardest questions since the logic wasn't long, but writing the NOT EXISTS correctly required treating refund rows as separate service_id matches with their own correction-flag CASE. My first version missed corrected refunds and over-flagged.
+**Author:** Ashwani Sherawat · Data Engineering, UE Germany · 2026
 
-3. One insight I'll carry forward
-The biggest takeaway for me was the discipline around indentation, documentation and industry-standard naming conventions. Going thorugh 25 queries with overlapping functions, I noticed how quickly a query becomes unreadable when the CASE statements aren't indented consistently or when alias names are arbitrary. Properly indented joins, aliases like 'p' for payment and 't' for trip used consistently and a header comment explaining what each query is doing made my project much structured and streamlined. Especially when I had to revisit Q25's logic while writing Q23 (which reused the same payment_correction_flag pattern). In future projects I would definetly using this informaiton to drive the effecieny and time for doing a project.
+## Dataset
+
+PostgreSQL database (course-provided): **10 tables · 30K ride trips · 5K parcel deliveries · 3K customers · 800 drivers**, spanning two source systems (`goride` / `quickhop`).
+
+## The Challenge
+
+The data carries **14 documented real-world quirks**, including duplicate customer/driver identities, cross-system trip ID collisions, mismatched rating scales (1–5 vs 1–10), inconsistent phone formats, status enum drift, and mis-tagged payments — all of which had to be handled in SQL, not cleaned upfront.
+
+## Highlights
+
+- **Entity resolution** — deduplicated customers and drivers via `merged_into_*` links and `COALESCE`
+- **Revenue reconciliation** — applied payment-correction flags to fix mis-tagged launch-week parcel payments
+- **Fraud detection** — flagged cancelled trips with retained (never-refunded) payments using `NOT EXISTS`
+- **Ghost trip audit** — matched trips against time-bounded driver-vehicle assignments
+- **Per-driver-month earnings by zone** — greatest-per-group with zone-name canonicalization
+
+## Files
+
+`queries.sql` — all 25 queries · `outputs.md` — query results · `notes.md` — reflections on the hardest problems
+
+## Key Lesson
+
+With multi-source data, the query is the easy part — knowing which identity, status, and flag to trust is the real work.
